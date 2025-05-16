@@ -1,0 +1,306 @@
+[
+  {
+    "brand_name": "Snapdeal",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "ShopClues",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Tata CLiQ",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Pepperfry",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Urban Ladder",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "FirstCry",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Lenskart",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Zepto",
+    "category_key": "grocery_spends_online"
+  },
+  {
+    "brand_name": "Dunzo",
+    "category_key": "grocery_spends_online"
+  },
+  {
+    "brand_name": "Fynd",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Nykaa Fashion",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "FabIndia",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "BIBA",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "Aurelia",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "W for Woman",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "Westside",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "Peter England",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "Van Heusen",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "Louis Philippe",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "Allen Solly",
+    "category_key": "other_offline_spends"
+  },
+  {
+    "brand_name": "Decathlon",
+    "category_key": "large_electronics_purchase_like_mobile_tv_etc"
+  },
+  {
+    "brand_name": "KFC India",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Burger King India",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Starbucks India",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Cafe Coffee Day",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Barista",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Haldiram's",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Bikanervala",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Barbeque Nation",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Mainland China",
+    "category_key": "dining_or_going_out"
+  },
+  {
+    "brand_name": "Shell India",
+    "category_key": "fuel"
+  },
+  {
+    "brand_name": "Nayara Energy",
+    "category_key": "fuel"
+  },
+  {
+    "brand_name": "Vistara",
+    "category_key": "flights_annual"
+  },
+  {
+    "brand_name": "AirAsia India",
+    "category_key": "flights_annual"
+  },
+  {
+    "brand_name": "GoFirst",
+    "category_key": "flights_annual"
+  },
+  {
+    "brand_name": "Marriott India",
+    "category_key": "hotels_annual"
+  },
+  {
+    "brand_name": "Hyatt India",
+    "category_key": "hotels_annual"
+  },
+  {
+    "brand_name": "Hilton India",
+    "category_key": "hotels_annual"
+  },
+  {
+    "brand_name": "Lemon Tree Hotels",
+    "category_key": "hotels_annual"
+  },
+  {
+    "brand_name": "Ginger Hotels",
+    "category_key": "hotels_annual"
+  },
+  {
+    "brand_name": "Treebo Hotels",
+    "category_key": "hotels_annual"
+  },
+  {
+    "brand_name": "Adani Electricity Mumbai",
+    "category_key": "electricity_bills"
+  },
+  {
+    "brand_name": "Torrent Power",
+    "category_key": "electricity_bills"
+  },
+  {
+    "brand_name": "BESCOM",
+    "category_key": "electricity_bills"
+  },
+  {
+    "brand_name": "TANGEDCO",
+    "category_key": "electricity_bills"
+  },
+  {
+    "brand_name": "BBMP (Bengaluru)",
+    "category_key": "water_bills"
+  },
+  {
+    "brand_name": "Pune Municipal Corporation",
+    "category_key": "water_bills"
+  },
+  {
+    "brand_name": "CRED",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "ET Money",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Paisabazaar",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Policybazaar",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "ClearTax",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Axis Bank",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Kotak Mahindra Bank",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Punjab National Bank",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Bajaj Finserv",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Practo",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "NetMeds",
+    "category_key": "all_pharmacy"
+  },
+  {
+    "brand_name": "Medanta",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Maruti Suzuki",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Tata Motors",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Blue Dart",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Delhivery",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Kalyan Jewellers",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Malabar Gold & Diamonds",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Aakash Institute",
+    "category_key": "school_fees"
+  },
+  {
+    "brand_name": "Allen Career Institute",
+    "category_key": "school_fees"
+  },
+  {
+    "brand_name": "Skillshare India",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Coursera India",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "PVR INOX",
+    "category_key": "movie_mov"
+  },
+  {
+    "brand_name": "Imagicaa",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Kama Ayurveda",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "Housejoy",
+    "category_key": "other_online_spends"
+  },
+  {
+    "brand_name": "FreshToHome",
+    "category_key": "grocery_spends_online"
+  },
+  {
+    "brand_name": "Licious",
+    "category_key": "grocery_spends_online"
+  },
+  {
+    "brand_name": "Heads Up For Tails",
+    "category_key": "other_online_spends"
+  }
+]

@@ -1,71 +1,97 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { userRequestScenarios } from '../data/user-request-scenarios';
-import { SpendingData } from '../types/spending';
+import { SpendingData } from '@/types/spending';
 import { Message } from '@/types/message';
 import Image from 'next/image';
 import { CardRecommendation as CardGeniusCardRecommendation } from '@/types/cardgenius';
+import { useApiErrorHandler } from '../hooks/useApiErrorHandler';
+import { withRetry } from '../utils/errorHandling';
+import CardResultsError from './CardResultsError';
+import { DialogueState } from '@/types/schema';
+import { SendIcon, Loader2Icon, UserIcon, BotIcon } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
+import { NextAction as BackendNextAction } from '@/lib/ConversationManager';
+import { CardGeniusResponse } from '@/types/cardgenius';
+
+// Deriving BackendActionType from BackendNextAction
+type BackendActionType = BackendNextAction['type'];
 
 interface ChatInterfaceProps {
   className?: string;
 }
 
-interface RecommendationsResponse {
-  recommendations: CardGeniusCardRecommendation[];
-  summary: {
-    total_savings_yearly: number;
-    roi: number;
-  };
+// Frontend-specific type for the API response from /api/chat
+interface ChatApiResponse {
+  type: BackendActionType | 'final' | 'question' | 'clarification';
+  recommendations?: CardGeniusResponse | null;
+  messageToUser?: string | null;
+  message?: string | null;
+  question?: string | null;
+  fieldKey?: string | null;
+  term?: string | null;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  console.log(messages,' MMMMM ');
   
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [currentPlaceholderIndex, setCurrentPlaceholderIndex] = useState(0);
   const [showPlaceholder, setShowPlaceholder] = useState(true);
-  const [accumulatedSpending, setAccumulatedSpending] = useState<SpendingData>({
-    amazon_spends: null,
-    flipkart_spends: null,
-    dining_or_going_out: null,
-    fuel: null,
-    other_online: null
+  const [isInitialMessage, setIsInitialMessage] = useState(true);
+  const [fieldKeyLastAsked, setFieldKeyLastAsked] = useState<string | null>(null);
+  const [termBeingClarified, setTermBeingClarified] = useState<string | null>(null);
+
+  const [dialogueState, setDialogueState] = useState<DialogueState>({
+    askedFields: [],
+    pendingFields: [],
+    chainStep: 0,
+    currentField: ''
   });
-  const [recommendations, setRecommendations] = useState<any>(null);
+
+  // State for card recommendations pagination
+  const [fullCardRecommendations, setFullCardRecommendations] = useState<CardGeniusCardRecommendation[]>([]);
+  const [displayedCardCount, setDisplayedCardCount] = useState(0);
+  const [canShowMoreCards, setCanShowMoreCards] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Get placeholders from user request scenarios
+  const { 
+    error, 
+    isError, 
+    errorMessage,
+    handleError, 
+    clearError 
+  } = useApiErrorHandler();
+
   const placeholders = userRequestScenarios.map(scenario => scenario.request);
 
-  // Cycle through placeholders every 2 seconds only on landing page
   useEffect(() => {
     if (!showPlaceholder || messages.length > 0) return;
     
-    console.log('Starting placeholder cycling');
     const interval = setInterval(() => {
       setCurrentPlaceholderIndex((prevIndex) => {
         const newIndex = prevIndex === placeholders.length - 1 ? 0 : prevIndex + 1;
-        console.log('Cycling to placeholder:', newIndex, placeholders[newIndex]);
         return newIndex;
       });
     }, 2000);
 
     return () => {
-      console.log('Clearing placeholder interval');
       clearInterval(interval);
     };
   }, [placeholders.length, showPlaceholder, messages.length]);
 
   const handleInputFocus = () => {
-    console.log('Input focused, hiding placeholder');
     setShowPlaceholder(false);
   };
 
   const handleInputBlur = () => {
     if (messages.length === 0 && !input.trim()) {
-      console.log('Input blurred, showing placeholder');
       setShowPlaceholder(true);
     }
   };
@@ -78,13 +104,37 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) 
     scrollToBottom();
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const { toast } = useToast();
 
+  const makeApiCallWithRetry = useCallback(async (url: string, options: RequestInit) => {
+    console.log('Debug - Making API call to:', url);
+    console.log('Debug - Request options:', options);
+    try {
+      const response = await withRetry(() => fetch(url, options));
+      console.log('Debug - Raw API response status:', response.status);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `HTTP error! status: ${response.status}` }));
+        console.error('Debug - API Error Response:', errorData);
+        throw new Error(errorData.error || `Error: ${response.statusText || response.status}`);
+      }
+      const data = await response.json();
+      console.log('Debug - API Success Response:', data);
+      return data;
+    } catch (error: any) {
+      console.error('Error in makeApiCallWithRetry:', error.message, error);
+      handleError(error.message || 'An unknown error occurred during API call');
+      throw error; 
+    }
+  }, [handleError]);
+
+  const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
+    if (e) e.preventDefault();
+    if (!input.trim() && !isLoading) return;
+
+    const userMessageContent = input;
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: input,
+      content: userMessageContent,
       role: 'user',
       timestamp: new Date().toISOString(),
     };
@@ -92,152 +142,263 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    clearError();
+
+    let requestBody;
+    if (isInitialMessage) {
+      requestBody = {
+        userInput: userMessageContent,
+        isInitialMessage: true,
+      };
+    } else if (termBeingClarified) {
+      requestBody = {
+        userInput: userMessageContent,
+        isInitialMessage: false,
+        termBeingClarified: termBeingClarified,
+      };
+    } else {
+      requestBody = {
+        userInput: userMessageContent,
+        isInitialMessage: false,
+        fieldKeyLastAsked: fieldKeyLastAsked,
+      };
+    }
 
     try {
-      // Step 1: Call chat API to get OpenAI response
-      const chatResponse = await fetch('/api/chat', {
+      const data: ChatApiResponse = await makeApiCallWithRetry('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: input,
-          context: messages.slice(-5),
-          accumulatedSpending,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       });
 
-      if (!chatResponse.ok) {
-        throw new Error('Failed to get response from chat API');
-      }
+      // Ensure data.message (from 'info' type) is prioritized if present
+      let assistantMessageContent = data.message || data.messageToUser || 'Processing your request...';
+      let assistantRecommendationsForThisMessage: CardGeniusCardRecommendation[] = [];
 
-      const chatData = await chatResponse.json();
-      console.log('Chat API Response:', chatData);
-
-      // Step 2: If ready for recommendations, call CardGenius API
-      let recommendations = null;
-      if (chatData.ready_for_recommendations) {
-        const cardResponse = await fetch('/api/card-recommendations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            spending_data: chatData.spending_data,
-          }),
-        });
-
-        if (!cardResponse.ok) {
-          throw new Error('Failed to get card recommendations');
+      if (data.recommendations) {
+        if (data.recommendations.success && Array.isArray(data.recommendations.savings)) {
+          if (data.recommendations.savings.length > 0) {
+            setFullCardRecommendations(data.recommendations.savings);
+            assistantRecommendationsForThisMessage = data.recommendations.savings.slice(0, 3);
+            setDisplayedCardCount(assistantRecommendationsForThisMessage.length);
+            setCanShowMoreCards(data.recommendations.savings.length > 3);
+            assistantMessageContent = data.recommendations.message || data.messageToUser || "Here are your top card recommendations:";
+          } else {
+            // Success but no savings/cards
+            setFullCardRecommendations([]);
+            setDisplayedCardCount(0);
+            setCanShowMoreCards(false);
+            assistantMessageContent = data.recommendations.message || data.messageToUser || "I found some information, but there are no specific card recommendations in this response.";
+          }
+        } else {
+          // Recommendations object exists, but not success or savings not an array
+          setFullCardRecommendations([]);
+          setDisplayedCardCount(0);
+          setCanShowMoreCards(false);
+          assistantMessageContent = data.recommendations.message || data.messageToUser || "Sorry, I couldn't retrieve valid recommendations at this time.";
         }
+      } else if (data.type === 'ERROR') {
+         assistantMessageContent = data.messageToUser || "An error occurred processing your request.";
+         setCanShowMoreCards(false); // Ensure no "show more" on error
+      }
+      
+      // Dialogue state management
+      if ((data.type === 'ASK_QUESTION' || data.type === 'question') && data.fieldKey) {
+        assistantMessageContent = data.message || data.messageToUser || data.question || "I have a question for you:";
+        setFieldKeyLastAsked((data.fieldKey as string) || null);
+        setTermBeingClarified(null);
+        setDialogueState(prev => ({
+          ...prev,
+          currentField: (data.fieldKey as string) || '',
+          chainStep: prev.chainStep + 1,
+        }));
+        setIsInitialMessage(false);
+        setCanShowMoreCards(false);
+      } else if (data.type === 'clarification' && data.term && (data.message || data.question)) {
+        assistantMessageContent = data.message || data.question || `Please tell me more about "${data.term}".`;
+        setTermBeingClarified(data.term as string);
+        setFieldKeyLastAsked(null);
+        setIsInitialMessage(false);
+        setCanShowMoreCards(false);
+        setDialogueState(prev => ({ ...prev, currentField: 'clarification', chainStep: prev.chainStep + 1 }));
+      } else {
+        const fieldResetTypes: Array<BackendActionType | 'final' | 'question' | 'clarification'> = ['END_CONVERSATION', 'CALL_API', 'ERROR', 'final'];
+        if (fieldResetTypes.includes(data.type as (BackendActionType | 'final' | 'question' | 'clarification'))) {
+          setFieldKeyLastAsked(null);
+          setTermBeingClarified(null);
+          setDialogueState(prev => ({ ...prev, currentField: '', chainStep: 0 }));
 
-        const cardData = await cardResponse.json();
-        console.log('CardGenius API Response:', cardData);
-        recommendations = cardData.savings;
+          if (data.type === 'final') {
+            // If type is 'final', it implies recommendations were processed.
+            // isInitialMessage is set based on whether we CAN show more or if this is the end of interaction.
+            // For now, setting to false to allow follow-up. Further logic might be needed for "restart".
+            setIsInitialMessage(false); 
+          } else {
+            setIsInitialMessage(true); // Reset for other "ending" types like ERROR or explicit END
+            setCanShowMoreCards(false); // Reset show more state
+          }
+        }
       }
 
-      // Create assistant message with both chat response and recommendations
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: chatData.content,
+        content: assistantMessageContent,
         role: 'assistant',
         timestamp: new Date().toISOString(),
-        spending_data: chatData.spending_data,
-        follow_up_question: chatData.follow_up_question,
-        recommendations: recommendations
+        recommendations: assistantRecommendationsForThisMessage
       };
-
       setMessages(prev => [...prev, assistantMessage]);
-      setAccumulatedSpending(chatData.spending_data);
-    } catch (error) {
-      console.error('Error:', error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: 'Sorry, there was an error processing your request. Please try again.',
-        role: 'assistant',
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
+
+    } catch (error:any) {
+      console.error('Error in handleSubmit (after API call attempt):', error.message, error);
+      const lastMessage = messages[messages.length - 1];
+      if (!(lastMessage?.role === 'assistant' && lastMessage?.content.includes('error'))) {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          content: error.message || 'Sorry, I encountered an error. Please try again.',
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+        } as Message]);
+      }
+      setIsInitialMessage(true);
+      setFieldKeyLastAsked(null);
+      setTermBeingClarified(null);
+      setDialogueState(prev => ({ ...prev, currentField: '', chainStep: 0 }));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e as unknown as React.FormEvent);
+      handleSubmit();
+    }
+  };
+
+  const handleShowMoreCards = () => {
+    if (!fullCardRecommendations.length || displayedCardCount >= fullCardRecommendations.length) {
+      setCanShowMoreCards(false);
+      return;
+    }
+
+    const nextCardsToShow = fullCardRecommendations.slice(displayedCardCount, displayedCardCount + 3);
+    
+    if (nextCardsToShow.length > 0) {
+      const newAssistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Here are some more card options:",
+        role: 'assistant',
+        timestamp: new Date().toISOString(),
+        recommendations: nextCardsToShow,
+      };
+      setMessages(prev => [...prev, newAssistantMessage]);
+      
+      const newDisplayedCount = displayedCardCount + nextCardsToShow.length;
+      setDisplayedCardCount(newDisplayedCount);
+      setCanShowMoreCards(fullCardRecommendations.length > newDisplayedCount);
+    } else {
+      setCanShowMoreCards(false); // No more cards to show from the slice
     }
   };
 
   const CardRecommendationDisplay = ({ recommendations }: { recommendations: CardGeniusCardRecommendation[] }) => {
-    // Take only the first 5 cards
-    const topCards = recommendations.slice(0, 5);
+    console.log("CardRecommendationDisplay received recommendations:", recommendations);
+
+    if (!recommendations || recommendations.length === 0) {
+      // This path should ideally not be hit if handleSubmit filters correctly,
+      // but as a fallback for the component itself.
+      return (
+        <div className="text-center text-gray-500 py-4">
+          No card recommendations to display in this message.
+        </div>
+      );
+    }
+    
+    // The 'recommendations' prop here is ALREADY SLICED (e.g., top 3, or next 3)
+    // So, no need to slice again. The filter for valid cards is still good.
+    const cardsToDisplay = recommendations
+      .filter(card => 
+        card && 
+        card.card_name && 
+        card.image && 
+        card.joining_fees !== undefined && 
+        card.total_savings_yearly !== undefined &&
+        card.ck_store_url
+      );
+
+    if (cardsToDisplay.length === 0) {
+      return (
+        <div className="text-center text-gray-500 py-4">
+          No valid card recommendations available to display.
+        </div>
+      );
+    }
 
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {topCards.map((card, index) => (
-            <div
-              key={card.id}
-              className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 flex-shrink-0 relative">
-                  <img
-                    src={card.image}
-                    alt={card.card_name}
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = 'https://via.placeholder.com/64';
-                    }}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-gray-900 truncate">
-                    {card.card_name}
-                  </h3>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Joining Fee:</span> ₹{card.joining_fees}
+      // Using flex column for vertical list. Removed individual card border.
+      <div className="flex flex-col space-y-3 mt-3"> 
+        {cardsToDisplay.map((card) => (
+          <div
+            key={card.id || card.card_name}
+            // Removed border, bg-white, shadow-md from here. Added padding.
+            className="rounded-lg p-3 bg-gray-50" // Light bg for card item within bubble
+          >
+            <div className="flex items-start space-x-3">
+              <div className="w-16 h-10 flex-shrink-0 relative"> {/* Adjusted height for card image */}
+                <img
+                  src={card.image}
+                  alt={card.card_name}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = 'https://via.placeholder.com/64';
+                  }}
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 truncate">
+                  {card.card_name}
+                </h3>
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Joining Fee:</span> ₹{card.joining_fees}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Annual Savings:</span> ₹{(card.total_savings_yearly || 0).toLocaleString()}
+                  </p>
+                  {card.welcomeBenefits && card.welcomeBenefits.length > 0 && card.welcomeBenefits[0].cash_value && (
+                    <p className="text-sm text-green-600">
+                      <span className="font-medium">Welcome Benefit:</span> ₹{card.welcomeBenefits[0].cash_value.toLocaleString()}
                     </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Annual Savings:</span> ₹{card.total_savings_yearly.toLocaleString()}
-                    </p>
-                    {card.welcomeBenefits.length > 0 && (
-                      <p className="text-sm text-green-600">
-                        <span className="font-medium">Welcome Benefit:</span> ₹{card.welcomeBenefits[0].cash_value.toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                  {card.ck_store_url && (
-                    <a
-                      href={card.ck_store_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      Apply Now →
-                    </a>
                   )}
                 </div>
+                {card.ck_store_url && (
+                  <a
+                    href={card.ck_store_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Apply Now →
+                  </a>
+                )}
               </div>
-              {card.product_usps?.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-700">Key Benefits:</h4>
-                  <ul className="mt-1 space-y-1">
-                    {card.product_usps?.slice(0, 2).map((usp, idx) => (
-                      <li key={idx} className="text-xs text-gray-600">
-                        • {usp.header}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
-          ))}
-        </div>
+            {card.product_usps && card.product_usps.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <h4 className="text-sm font-medium text-gray-700">Key Benefits:</h4>
+                <ul className="mt-1 space-y-1">
+                  {card.product_usps.slice(0, 2).map((usp, idx) => (
+                    <li key={idx} className="text-xs text-gray-600">
+                      • {usp.header}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     );
   };
@@ -245,10 +406,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) 
   const RecommendationsSummary = ({ recommendations }: { recommendations: CardGeniusCardRecommendation[] }) => {
     if (!recommendations || recommendations.length === 0) return null;
 
-    // Sort cards by total savings
-    const sortedCards = [...recommendations].sort(
-      (a, b) => (b.total_savings_yearly || 0) - (a.total_savings_yearly || 0)
-    );
+    const sortedCards = recommendations
+      .filter(card => 
+        card && 
+        card.card_name && 
+        card.image && 
+        card.joining_fees !== undefined && 
+        card.total_savings_yearly !== undefined &&
+        card.ck_store_url
+      )
+      .sort((a, b) => (b.total_savings_yearly || 0) - (a.total_savings_yearly || 0));
+
+    if (sortedCards.length === 0) return null;
 
     return (
       <div className="bg-gray-800 rounded-lg p-6 mb-6">
@@ -287,15 +456,32 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) 
           }`}
         >
           <div className="whitespace-pre-wrap">{message.content}</div>
-          {message.recommendations && (
+          {message.recommendations && message.recommendations.length > 0 && (
             <CardRecommendationDisplay recommendations={message.recommendations} />
           )}
-          {message.follow_up_question && (
-            <div className="mt-2 text-sm text-gray-600">
-              {message.follow_up_question}
-            </div>
-          )}
         </div>
+      </div>
+    );
+  };
+
+  const renderErrorState = () => {
+    if (!isError) return null;
+    
+    const errorType = 
+      error?.code === 'NETWORK_ERROR' ? 'network' : 
+      error?.status === 404 ? 'data' :
+      error?.status && error.status >= 500 ? 'api' : 'general';
+    
+    return (
+      <div className="mt-4 mb-4">
+        <CardResultsError
+          error={error}
+          errorType={errorType}
+          onRetry={handleSubmit}
+          onRestart={() => {
+            clearError();
+          }}
+        />
       </div>
     );
   };
@@ -313,44 +499,57 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) 
             {renderMessage(message)}
           </motion.div>
         ))}
+        
+        {renderErrorState()}
+        
         {isLoading && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="flex justify-start"
           >
-            <div className="loading-dots">
-              <span></span>
-              <span></span>
-              <span></span>
+            <div className="p-3 rounded-lg bg-muted text-muted-foreground rounded-bl-none flex items-center">
+              <Loader2Icon className="animate-spin h-5 w-5 mr-2" /> Thinking...
             </div>
           </motion.div>
         )}
+        {/* Button to show more cards */}
+        {canShowMoreCards && !isLoading && (
+          <div className="flex justify-center mt-2 mb-4">
+            <Button onClick={handleShowMoreCards} variant="outline" size="sm">
+              Show Next 3 Cards
+            </Button>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
+      
       <form onSubmit={handleSubmit} className="search-container">
         <div className="search-input-wrapper">
-          <textarea
+          <Input
+            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
-            placeholder={showPlaceholder ? placeholders[currentPlaceholderIndex] : ''}
+            placeholder={showPlaceholder ? placeholders[currentPlaceholderIndex] : 'Type your message...'}
             className="search-input"
-            rows={1}
             data-expanded={input.length > 0}
+            disabled={isLoading || isRetrying}
           />
-          <button
+          <Button
             type="submit"
             disabled={isLoading || !input.trim()}
             className="send-button"
           >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M12 5L19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+            {isLoading ? (
+              <Loader2Icon className="animate-spin h-5 w-5" />
+            ) : (
+              <SendIcon className="h-5 w-5" />
+            )}
+            <span className="sr-only">Send</span>
+          </Button>
         </div>
       </form>
     </div>

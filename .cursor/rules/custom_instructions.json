@@ -1,0 +1,78 @@
+{
+    "editor": {
+        "tabSize": 2,
+        "insertSpaces": true,
+        "formatOnSave": true,
+        "formatOnPaste": true,
+        "wordWrap": "on",
+        "rulers": [80, 100],
+        "trimTrailingWhitespace": true,
+        "insertFinalNewline": true
+    },
+    "files": {
+        "exclude": {
+            "**/.git": true,
+            "**/.svn": true,
+            "**/.hg": true,
+            "**/CVS": true,
+            "**/.DS_Store": true,
+            "**/node_modules": true,
+            "**/dist": true,
+            "**/build": true,
+            "**/.next": true
+        }
+    },
+    "search": {
+        "exclude": {
+            "**/node_modules": true,
+            "**/dist": true,
+            "**/build": true,
+            "**/.next": true
+        }
+    },
+    "terminal": {
+        "integrated": {
+            "shell": {
+                "windows": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+            }
+        }
+    },
+    "projectGuidelines": {
+        "technologyStack": {
+            "frontend": "React (for conversational UI components)",
+            "backend": "Node.js with Express (for API integration)",
+            "additional": "Axios for HTTP requests"
+        },
+        "namingConventions": {
+            "reactComponents": "PascalCase (e.g., CreditCardChat.js)",
+            "utilityFunctions": "camelCase (e.g., parseUserInput)",
+            "general": "Use consistent indentation and ES6 syntax"
+        },
+        "domainMappings": {
+            "amazon": "amazon_spends",
+            "flipkart": "flipkart_spends",
+            "dining": "dining_or_going_out",
+            "dinner": "dining_or_going_out",
+            "goingOut": "dining_or_going_out",
+            "fallbackMapping": "docs/brands.md"
+        },
+        "bestPractices": [
+            "Wrap all API calls in try/catch blocks and log errors for debugging",
+            "Validate JSON payloads before sending them to the internal API",
+            "If a spending amount is missing in a conversation, automatically trigger a follow-up prompt for clarification",
+            "Keep context concise: reference only relevant files and documentation using @Docs or @Files",
+            "Ensure Privacy Mode is enabled for sensitive financial data"
+        ],
+        "issueTracking": {
+            "strictAdherence": true,
+            "rules": [
+                "Only implement changes explicitly listed in docs/ISSUE_TRACKING.md",
+                "Do not introduce changes outside of documented issues",
+                "Maintain basic functionality while implementing tracked issues",
+                "Reference ISSUE_TRACKING.md for all implementation decisions",
+                "Ensure changes align with priority levels (P0-P3) as defined in tracking document"
+            ],
+            "documentation": "docs/ISSUE_TRACKING.md"
+        }
+    }
+} 

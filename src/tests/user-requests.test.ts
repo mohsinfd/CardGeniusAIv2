@@ -1,5 +1,6 @@
-import { expect, describe, test } from '@jest/globals'
+import { expect, describe, test, beforeEach, jest } from '@jest/globals'
 import { parseUserRequest } from '../utils/request-parser'
+import { POST } from '../app/api/card-recommendations/route'
 
 interface TestCase {
   name: string
@@ -134,9 +135,8 @@ const testCases: TestCase[] = [
   }
 ]
 
-// Mock fetch globally with proper Jest mock type
-const mockFetch = jest.fn<Promise<Response>, [RequestInfo, RequestInit?]>()
-global.fetch = mockFetch
+// Mock fetch with proper typing
+const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>
 
 describe('User Request Parser', () => {
   beforeEach(() => {
@@ -547,4 +547,167 @@ describe('User Request Scenarios', () => {
 
   // Additional test cases can be added here...
   // (Continuing with more specific scenarios and combinations)
+})
+
+// Test suite for API route changes
+describe('API Route Changes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    global.fetch = mockFetch
+  })
+
+  describe('Null Value Handling', () => {
+    test('should use null for default values when no spending data provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          spendingData: {
+            amazon_spends: null,
+            flipkart_spends: null,
+            dining_or_going_out: null,
+            grocery_spends: null,
+            travel_spends: null,
+            other_spends: null
+          }
+        })
+      } as Response)
+
+      const response = await POST(new Request('http://test.com', {
+        method: 'POST',
+        body: JSON.stringify({})
+      }))
+      const data = await response.json()
+      
+      expect(data.spendingData).toEqual({
+        amazon_spends: null,
+        flipkart_spends: null,
+        dining_or_going_out: null,
+        grocery_spends: null,
+        travel_spends: null,
+        other_spends: null
+      })
+    })
+
+    test('should merge partial spending data with null defaults', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          spendingData: {
+            amazon_spends: 5000,
+            flipkart_spends: null,
+            dining_or_going_out: 3000,
+            grocery_spends: null,
+            travel_spends: null,
+            other_spends: null
+          }
+        })
+      } as Response)
+
+      const response = await POST(new Request('http://test.com', {
+        method: 'POST',
+        body: JSON.stringify({
+          amazon_spends: 5000,
+          dining_or_going_out: 3000
+        })
+      }))
+      const data = await response.json()
+      
+      expect(data.spendingData).toEqual({
+        amazon_spends: 5000,
+        flipkart_spends: null,
+        dining_or_going_out: 3000,
+        grocery_spends: null,
+        travel_spends: null,
+        other_spends: null
+      })
+    })
+  })
+
+  describe('API Error Handling', () => {
+    test('should handle API timeout', async () => {
+      mockFetch.mockImplementationOnce(() => 
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('timeout')), 11000)
+        )
+      )
+
+      const response = await POST(new Request('http://test.com', {
+        method: 'POST',
+        body: JSON.stringify({})
+      }))
+      const data = await response.json()
+      
+      expect(data.cards).toBeDefined()
+      expect(console.error).toHaveBeenCalled()
+    })
+
+    test('should return fallback data on API failure', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('API Error'))
+
+      const response = await POST(new Request('http://test.com', {
+        method: 'POST',
+        body: JSON.stringify({})
+      }))
+      const data = await response.json()
+      
+      expect(data.cards).toBeDefined()
+      expect(data.cards.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('Spending Data Processing', () => {
+    test('should process different spending categories', async () => {
+      const spendingData = {
+        amazon_spends: 5000,
+        flipkart_spends: 3000,
+        dining_or_going_out: 2000,
+        grocery_spends: 4000,
+        travel_spends: 10000,
+        other_spends: 1500
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          spendingData
+        })
+      } as Response)
+
+      const response = await POST(new Request('http://test.com', {
+        method: 'POST',
+        body: JSON.stringify(spendingData)
+      }))
+      const data = await response.json()
+      
+      expect(data.spendingData).toEqual(spendingData)
+    })
+
+    test('should validate spending amounts', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          spendingData: {
+            amazon_spends: null,
+            flipkart_spends: null,
+            dining_or_going_out: null,
+            grocery_spends: null,
+            travel_spends: null,
+            other_spends: null
+          }
+        })
+      } as Response)
+
+      const response = await POST(new Request('http://test.com', {
+        method: 'POST',
+        body: JSON.stringify({
+          amazon_spends: -1000,
+          dining_or_going_out: 'invalid'
+        })
+      }))
+      const data = await response.json()
+      
+      expect(data.spendingData.amazon_spends).toBeNull()
+      expect(data.spendingData.dining_or_going_out).toBeNull()
+    })
+  })
 }) 

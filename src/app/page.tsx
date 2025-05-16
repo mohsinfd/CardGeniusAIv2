@@ -1,13 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChatInterface } from '@/components/ChatInterface'
 import { Message } from '@/types/message'
 import '../styles/Home.css';
 
 export default function Home() {
-  console.log('BBBBBB');
-  
+  const [showSubtitle, setShowSubtitle] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSubtitle(true);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className="container">
       <header className="app-header">
@@ -30,8 +37,11 @@ export default function Home() {
       <main className="main-content">
         <h1 className="main-title">
           <span className="brand-text">CardGenius</span>
-          <span className="regular-text">AI</span>
-          <span className="subtitle">will recommend the best credit card. Just ask.</span>
+          <span className="regular-text"> AI</span>
+          <span className="subtitle">
+            will recommend the best credit card.
+            {showSubtitle && <span className="fade-in"> Just ask.</span>}
+          </span>
         </h1>
         <ChatInterface />
       </main>

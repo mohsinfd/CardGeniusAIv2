@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { SpendingData } from '@/types/spending';
+import { SpendProfile } from '@/types/SpendProfile';
+import { fetchCardRecommendationsFromAPI } from '@/lib/cardGeniusAPI'; // Import the utility
+import { CardGeniusResponse } from '@/types/cardgenius';
 
-// Default spending data with all fields initialized to 0
-const defaultSpendingData: SpendingData = {
+// Initialize default spending data with all fields set to 0
+const defaultSpendingData: SpendProfile = {
   amazon_spends: 0,
   flipkart_spends: 0,
   grocery_spends_online: 0,
@@ -35,58 +37,55 @@ const defaultSpendingData: SpendingData = {
   movie_usage: 0,
   movie_mov: 0,
   dining_usage: 0,
-  dining_mov: 0
+  dining_mov: 0,
+  selected_card_id: null
+};
+
+const fallbackErrorResponse: CardGeniusResponse = {
+  success: false,
+  message: "Unable to process your request at this time. Please try again later.",
+  savings: []
 };
 
 export async function POST(request: Request) {
   try {
-    // Parse the incoming request body
     const body = await request.json();
-    const incomingSpendingData = body.spending_data || {};
+    console.log('Received request body for /api/card-recommendations:', body);
 
-    // Create a new object with default values and update with incoming data
-    const spendingData: SpendingData = { ...defaultSpendingData };
-    Object.keys(incomingSpendingData).forEach(key => {
-      if (key in spendingData) {
-        const value = incomingSpendingData[key];
-        spendingData[key as keyof SpendingData] = typeof value === 'number' ? value : 0;
-      }
-    });
+    const spendingDataForAPI: SpendProfile = { ...defaultSpendingData };
 
-    // Log the request data for debugging
-    console.log('Sending request to CardGenius API with spending data:', spendingData);
-
-    // Make the API call to CardGenius
-    const response = await fetch('https://bk-prod-external.bankkaro.com/cg/api/pro', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ...spendingData,
-        selected_card_id: null
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('CardGenius API error:', errorData);
-      return NextResponse.json(
-        { error: 'Failed to fetch card recommendations' },
-        { status: response.status }
-      );
+    if (body.spending_data) {
+      Object.entries(body.spending_data).forEach(([key, value]) => {
+        if (key in spendingDataForAPI) {
+          if (key === 'selected_card_id') {
+            spendingDataForAPI[key] = null; // Or handle as string if API expects that
+          } else {
+            spendingDataForAPI[key] = typeof value === 'number' ? value : 0;
+          }
+        }
+      });
+    }
+    
+    // Validate spending data (optional, as the utility function might also validate)
+    if (!spendingDataForAPI || Object.keys(spendingDataForAPI).length === 0) {
+      console.error('No valid spending data provided to /api/card-recommendations');
+      return NextResponse.json(fallbackErrorResponse, { status: 400 });
     }
 
-    const data = await response.json();
-    console.log('Received response from CardGenius API:', data);
+    // Call the utility function
+    const recommendations = await fetchCardRecommendationsFromAPI(spendingDataForAPI);
+    
+    // The utility function already handles API errors and returns a CardGeniusResponse structure.
+    // We just need to pass its result (or error structure) along.
+    if (!recommendations.success) {
+        // If the API call wasn't successful as per its own 'success' flag or due to an error caught in utility
+        return NextResponse.json(recommendations, { status: 500 }); // Or a more specific error if available
+    }
 
-    // Return the exact response from the API without transformation
-    return NextResponse.json(data);
+    return NextResponse.json(recommendations);
+
   } catch (error) {
-    console.error('Error in card-recommendations API:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Critical error in /api/card-recommendations handler:', error);
+    return NextResponse.json(fallbackErrorResponse, { status: 500 });
   }
 } 

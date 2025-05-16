@@ -1,11 +1,4 @@
-interface SpendingData {
-  monthly: {
-    rent?: number
-    amazon_spends?: number
-    flipkart_spends?: number
-    [key: string]: number | undefined
-  }
-}
+import { SpendingData } from '@/types/spending';
 
 interface OfferPreferences {
   preferred_merchants: string[]
