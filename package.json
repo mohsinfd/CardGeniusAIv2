@@ -1,0 +1,36 @@
+{
+  "name": "cardgenius-ai",
+  "version": "1.0.0",
+  "description": "CardGenius AI - Credit Card Rewards Calculator",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "jest",
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.29.0",
+    "apache-arrow": "^20.0.0",
+    "dotenv": "^16.5.0",
+    "openai": "^4.100.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.24.4",
+    "marked": "^12.0.0",
+    "dompurify": "^3.0.8"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.11.24",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.4.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vite": "^6.3.5",
+    "@types/dompurify": "^3.0.5"
+  }
+}

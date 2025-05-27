@@ -1,0 +1,7 @@
+@'
+— Always write Jest tests before code.
+— Use strict types (no `any`) in TypeScript.
+— Never hard-code business data; load from CSV sources.
+— Keep Script Blocks under 100 LOC.
+— Use “Write diff” for edits, not full-file rewrites.
+'@ | Out-File .cursorrules -Encoding UTF8

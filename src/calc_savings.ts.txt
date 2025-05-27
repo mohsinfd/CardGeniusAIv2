@@ -1,0 +1,100 @@
+// calc_savings.ts — deterministic CardGenius calculator
+// -----------------------------------------------------
+// Dependencies: DuckDB WASM (bundled in Cursor) and Zod 3.x
+// Data tables expected in DuckDB:
+//   • joined_view     – per-card per-category reward_rate + monthly_cap
+//   • milestones      – milestone_spend → milestone_reward
+// -----------------------------------------------------
+
+import { Database } from "duckdb";
+import { z } from "zod";
+
+/* ---------- Types & Schemas ---------- */
+
+export const SpendSchema = z.record(z.string(), z.number().nonnegative());
+export type SpendProfile = z.infer<typeof SpendSchema>;
+
+export interface SavingsResult {
+  card_id: string;
+  monthly_rewards: number;
+  milestone_bonus: number;
+  annual_total: number;
+}
+
+/* ---------- Core helpers ---------- */
+
+/** Calculate rewards for ONE card */
+export async function calcCard(
+  db: Database,
+  cardId: string,
+  spend: SpendProfile
+): Promise<SavingsResult> {
+  // 1. Fetch reward rules + caps
+  const rules = await db.all(
+    `SELECT category_key,
+            reward_rate,
+            COALESCE(monthly_cap, 9e12) AS cap
+       FROM joined_view
+      WHERE card_id = ?`,
+    [cardId]
+  );
+
+  // 2. Accumulate monthly rewards
+  let monthly = 0;
+  for (const { category_key, reward_rate, cap } of rules as any[]) {
+    const amt = Math.min(spend[category_key] ?? 0, cap);
+    monthly += amt * reward_rate;
+  }
+
+  // 3. Check milestone eligibility
+  const totalSpend = Object.values(spend).reduce((a, b) => a + b, 0);
+  const ms = await db.get(
+    `SELECT milestone_reward
+       FROM milestones
+      WHERE card_id = ?
+        AND ? >= milestone_spend
+   ORDER BY milestone_spend DESC
+      LIMIT 1`,
+    [cardId, totalSpend]
+  );
+  const milestone_bonus = ms?.milestone_reward ?? 0;
+
+  return {
+    card_id: cardId,
+    monthly_rewards: monthly,
+    milestone_bonus,
+    annual_total: monthly * 12 + milestone_bonus,
+  };
+}
+
+/** Calculate the TOP-N cards by annual_total */
+export async function calcTopN(
+  db: Database,
+  spend: SpendProfile,
+  topN = 3
+): Promise<SavingsResult[]> {
+  const cardIds: { card_id: string }[] = await db.all(
+    `SELECT DISTINCT card_id FROM cards`
+  );
+
+  const results: SavingsResult[] = [];
+  for (const { card_id } of cardIds) {
+    results.push(await calcCard(db, card_id, spend));
+  }
+
+  return results
+    .sort((a, b) => b.annual_total - a.annual_total)
+    .slice(0, topN);
+}
+
+/* ---------- Example (for a Cursor Script Block) ---------- */
+// import { Database } from "duckdb";
+// import { SpendSchema, calcTopN } from "./src/calc_savings";
+//
+// const db = new Database();
+// await db.open(":memory:");
+// // Attach your CSV tables before calling calcTopN …
+//
+// const spend = SpendSchema.parse({ amazon_spends: 10000, fuel: 3000 });
+// const best = await calcTopN(db, spend, 3);
+// console.log(best);
