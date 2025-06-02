@@ -1,6 +1,6 @@
-import { AsyncDuckDB } from '@duckdb/duckdb-wasm';
+import * as duckdb from '@duckdb/duckdb-wasm';
 
-export async function createViews(db: AsyncDuckDB) {
+export async function createViews(db: duckdb.AsyncDuckDB) {
   const conn = await db.connect();
   
   try {
@@ -71,7 +71,7 @@ export async function createViews(db: AsyncDuckDB) {
       FROM spending_categories sc
       WHERE sc."Category Name" = 'ICICI APCC'
     `);
-    console.log('[create_views.ts] AmazonPay ICICI spending categories:', JSON.stringify(amazonPaySpendingCategories.toArray().map(row => row.toJSON()), (key, value) => typeof value === 'bigint' ? value.toString() : value, 2));
+    console.log('[create_views.ts] AmazonPay ICICI spending categories:', JSON.stringify(amazonPaySpendingCategories, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2));
 
     // Add diagnostic query for icici_5P in category_caps
     const icici5PDiagnostic = await conn.query(`
@@ -85,7 +85,7 @@ export async function createViews(db: AsyncDuckDB) {
       FROM category_caps
       WHERE "Spending Category" = 'icici_5P'
     `);
-    console.log('[create_views.ts] icici_5P category caps:', JSON.stringify(icici5PDiagnostic.toArray().map(row => row.toJSON()), (key, value) => typeof value === 'bigint' ? value.toString() : value, 2));
+    console.log('[create_views.ts] icici_5P category caps:', JSON.stringify(icici5PDiagnostic, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2));
 
     // Create the main reward_rules table
     await conn.query(`
@@ -145,7 +145,7 @@ export async function createViews(db: AsyncDuckDB) {
       WHERE c."Card Name" = 'ICICI Amazon Pay Credit Card'
         AND map.UserSchemaCategory = 'amazon_spends'
     `);
-    console.log('[create_views.ts] AmazonPay ICICI diagnostic:', JSON.stringify(amazonPayDiagnostic.toArray().map(row => row.toJSON()), (key, value) => typeof value === 'bigint' ? value.toString() : value, 2));
+    console.log('[create_views.ts] AmazonPay ICICI diagnostic:', JSON.stringify(amazonPayDiagnostic, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2));
 
     // Create view for easy access to category-specific rewards for calculations
     await conn.query(`
@@ -219,6 +219,6 @@ export async function createViews(db: AsyncDuckDB) {
     */
     
   } finally {
-    await conn.close();
+    conn.close();
   }
 } 

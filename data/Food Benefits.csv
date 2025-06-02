@@ -1,0 +1,16 @@
+ID,Card ID,Food Benefit Availability,Food Benefit MOV,Food Benefit Percentage,Food Benefit Max Cap,Food Benefit Monthly,Type
+3,8,0,0,0,0,1000,dining
+5,11,20,100,20,100000000,0,dining
+7,16,1,500,15,500,0,dining
+8,17,1,100,15,500,0,dining
+9,18,1,2500,15,500,0,dining
+10,19,1,2500,40,1000,0,dining
+11,20,2,500,0,0,240,online
+12,21,1,2500,25,800,0,dining
+13,23,2,2000,15,1000,0,dining
+14,24,1,2000,20,1500,0,dining
+16,41,20,2500,25,1000,0,dining
+17,45,20,2000,15,100000000,0,dining
+18,53,200,1000,0,0,2,
+19,50,1,2500,25,0,800,
+20,67,2,200,30,150,0,Swiggy Coupon

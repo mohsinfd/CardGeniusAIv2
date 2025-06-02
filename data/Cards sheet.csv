@@ -1,0 +1,64 @@
+ID,Card Name,Bank ID,Spending Categories ID,Joining Fees,Annual Fees,Joining Waiver Threshold,Annual Fee Waiver Threshold,Tags,Type
+8,MRCC,3,3,1000,4500,0,150000,shopping,rewards
+11,AMEX PLATINUM TRAVEL,3,5,3500,5000,100000000000000,100000000000000,"travel,airport lounge",rewards
+12,AMEX SMART EARN,3,6,495,495,100000000000000,40000,"shopping,dining,food delivery",rewards
+13,AU ALTURA,5,7,199,199,10000,10000,"shopping, movies, utility",cashback
+14,AU ZENITH,5,8,7999,7999,125000,500000,"shopping, lounge, travel, dining, movies, utility",rewards
+15,AU ZENITH PLUS,5,9,4999,4999,100000000000000,800000,"shopping, travel, dining, movies, lounge",rewards
+16,AXIS AIRTEL CC,1,10,500,500,100000000000000,200000,"online shopping, cashback, utility bills",cashback
+17,AXIS FLIPKART,1,11,500,500,100000000000000,350000,"shopping, dining, movies",cashback
+18,AXIS INDIAN OIL RUPAY,1,12,500,500,100000000000000,350000,"fuel, utility",rewards
+19,AXIS MAGNUS,1,13,12500,12500,100000000000000,2500000,"travel,lounge,shopping",rewards
+20,AXIS MY ZONE,1,14,0,0,100000000000000,100000000000000,"shopping,movies,food delivery",rewards
+21,AXIS VISTARA,1,15,1500,1500,100000000000000,100000000000000,"travel, lounge",rewards
+22,HDFC INDIAN OIL,8,16,500,500,100000000,50000,fuel,rewards
+23,HDFC INFINIA,8,17,12500,12500,1000000000,1000000,"travel, dining, shopping, lounge",rewards
+24,HDFC MILLENIA,8,18,1000,1000,100000000000,100000,"shopping, food delivery, dining",rewards
+25,HDFC SWIGGY,8,19,500,500,200000000,200000,"food delivery, dining",cashback
+26,HDFC TATA NEU,8,20,499,499,10000000,100000,"shopping, travel, dining",cashback
+27,HDFC SHOPPERS STOP,8,21,299,299,1000000000,10000000000,shopping,cashback
+29,SBI BPCL OCTANE,11,23,1499,1499,10000000000,10000000000,fuel,rewards
+30,SBI CASHBACK,11,24,999,999,1000000000,200000,"shopping, dining, utility",cashback
+31,SBI SIMPLY CLICK,11,27,499,499,100000000000,100000,"shopping, movies, partner offers",rewards
+32,StanC EASE MY TRIP,12,25,350,350,1000000,50000,travel,cashback
+33,StanC SMART,12,26,499,499,10000000,120000,"shopping, food delivery, utility",cashback
+34,ICICI HPCL SUPER SAVER,4,28,500,500,10000000000,150000,fuel,rewards
+35,ICICI HPCL CORAL,4,29,199,199,100000000,10000000,fuel,rewards
+36,ICICI EMERLADE PRIVATE METAL,4,30,,,,,,
+39,IDFC FIRST SELECT,7,33,0,0,10000000000,1000000000,"travel, dining,shopping, utility",rewards
+40,IDFC POWER PLUS,7,34,199,199,10000000000,1000000000,"travel, dining, fuel, utility",rewards
+41,IndusInd EASYDINER,6,35,1999,1999,100000000,10000000,dining,rewards
+43,IndusInd LEGEND,6,36,9998,9999,1000000000,100000000,"shopping, travel, dining, movies",rewards
+44,IndusInd PLATINUM RUPAY,6,37,0,0,10000000000,1000000000,"shopping,dining, fuel, movies",rewards
+45,ICICI PLATINUM CHIP,4,38,0,0,999999999999,1000000000000,shopping,rewards
+46,MakeMyTrip ICICI Bank Credit Card,4,39,999,999,100000000000,300000,"travel, lounge",cashback
+47,IDFC CLUB VISTARA,7,40,5000,5000,,0,"travel,utility bills",rewards
+49,AXIS PRIVILEGE CREDIT CARD,1,42,1500,1500,,500000,"shopping, travel, dining",rewards
+50,Samsung Axis Bank Infinite Credit Card,1,43,5000,5000,0,700000,"shopping, dining, utility",rewards
+51,Samsung Axis Bank Signature Credit Card,1,44,500,500,0,200000,"shopping, dining, utility",rewards
+53,AXIS SELECT CREDIT CARD,1,45,3000,3000,0,0,"utility, dining, lounge",rewards
+54,HDFC Marriott Bonvoy Credit Card,8,47,3000,3000,0,0,"shopping, travel, dining",rewards
+55,HDFC IRCTC Credit Card,8,48,500,500,0,150000,"shopping, travel, dining",rewards
+56,HDFC RuPay Credit Card,8,49,99,99,0,0,"shopping, travel, dining",rewards
+57,IDFC FIRST WOW CREDIT CARD,7,50,0,0,0,0,"shopping, travel, dining",rewards
+58,IDFC FIRST MILLENIA CREDIT CARD,7,51,0,0,0,0,"shopping, travel, dining",rewards
+59,IDFC ASHVA CREDIT CARD,7,52,2999,2999,0,800000,"shopping, travel, dining",rewards
+60,IDFC MAYURA CREDIT CARD,7,52,6000,6000,,800000,"shopping, travel, dining",rewards
+61,IndusInd Platinum Aura Edge Credit Card,6,53,0,0,0,0,"shopping, travel, dining",rewards
+62,IndusInd Tiger Credit Card,6,54,0,0,0,0,"shopping, travel, dining",rewards
+63,SBI ELITE CREDIT CARD,11,55,5000,5000,0,0,"shopping, travel, dining",rewards
+64,SBI Prime Credit Card,11,56,0,0,0,0,"shopping, travel, dining",rewards
+65,SBI SimplySave Credit Card,11,57,499,499,0,0,"shopping, travel, dining",rewards
+66,AMEX GOLD CREDIT CARD,3,58,1000,4500,0,0,"shopping, travel, dining",rewards
+67,Axis Rewards Credit Card,1,59,1000,1000,0,0,"shopping, travel, dining",rewards
+68,AXIS AURA CREDIT CARD,1,61,750,750,0,0,"shopping, travel, dining",rewards
+69,HDFC Freedom Credit Card,8,62,500,500,0,50000,"shopping, travel, dining",rewards
+70,6E Rewards - Indigo HDFC,8,63,500,500,0,0,"shopping, travel, dining",rewards
+71,IDFC Wealth Credit Card,7,64,0,0,0,0,"travel, lounge, forex, shopping",rewards
+72,IDFC FIRST CLASSIC CREDIT CARD,7,65,0,0,0,0,"movie, travel, dining",rewards
+73,IDFC POWER,7,66,199,199,0,50000,fuel,rewards
+74,AXIS ATLAS CC,1,60,5000,5000,0,0,,rewards
+75,Test Card,6,67,0,0,0,0,"shopping, travel, dining",cashback
+76,ICICI Amazon Pay Credit Card,4,68,0,0,0,0,shopping,cashback
+77,HSBC Live+ Credit Card,10,69,999,999,0,200000,"shopping,dining,food delivery",cashback
+78,HSBC Platinum Credit Card,10,70,0,0,0,0,"shopping,dining,food delivery",rewards

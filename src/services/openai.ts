@@ -1,19 +1,10 @@
 import OpenAI from 'openai';
 import { ChatMessage, SpendProfile } from '../types';
-import { CardRecommendation, calcTopN } from '../calc_savings';
-import { AsyncDuckDB } from '@duckdb/duckdb-wasm';
 import { SPEND_SCHEMA_CATEGORIES } from '../CategoryGraph';
-import { CardRecommendation as UICardRecommendation } from '../types';
-import { CardRecommendation as CalcCardRecommendation } from '../calc_savings';
+import { CardRecommendation as ApiCardRecommendation, CardFacts } from './cardApiService';
 
 const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
 let openai: OpenAI | null = null;
-let db: AsyncDuckDB | null = null;
-
-// Initialize DuckDB
-export async function initializeDB(database: AsyncDuckDB) {
-  db = database;
-}
 
 if (apiKey) {
   openai = new OpenAI({
@@ -22,6 +13,11 @@ if (apiKey) {
   });
 } else {
   console.error('OpenAI API key is not configured. Please check your .env file.');
+}
+
+export async function initializeDB() {
+  // Initialize any necessary database connections or state
+  console.log('OpenAI service initialized with database');
 }
 
 export type Intent = "BEST_CARD" | "CARD_EXPLAIN" | "RESTART" | "UNKNOWN" | "CONTINUE_CONVERSATION";
@@ -140,7 +136,6 @@ Please interpret this response primarily in the context of the question about \"
 
   try {
     const completion = await openai.chat.completions.create({
-      // model: "gpt-4o", // As per plan, ideally GPT-4o for better structured output
       model: import.meta.env.VITE_OPENAI_MODEL || "gpt-3.5-turbo", // Use configured or fallback
       messages: [
         { role: "system", content: PARSE_INTENT_AND_SPENDS_SYSTEM_PROMPT },
@@ -196,7 +191,6 @@ Please interpret this response primarily in the context of the question about \"
 // Stub for flows/ask-question.flow.json (3.3)
 export async function generateFollowUpQuestion(
   categoryToAsk: string, 
-  currentSpends: Partial<SpendProfile>,
   mentionedTerm?: string
 ): Promise<ChatMessage> {
   if (!openai) return { role: 'assistant', content: "I'm having trouble connecting right now. Please try again later." };
@@ -221,73 +215,94 @@ export async function generateFollowUpQuestion(
 
 
 // Stub for flows/calc-savings.flow.json (3.4 - Verbalizer)
-export async function verbalizeRecommendations(
-  recommendations: CalcCardRecommendation[], 
+export const verbalizeRecommendations = async (
+  recommendations: ApiCardRecommendation[],
   followUpQuestionContent?: string
-): Promise<ChatMessage> {
+): Promise<ChatMessage> => {
+  try {
+    const recommendationsText = recommendations.map(rec => {
+      const breakdownText = Object.entries(rec.category_wise_breakdown)
+        .map(([category, { spend, reward }]) => 
+          `${category}: ₹${spend} spend → ₹${reward} reward`
+        )
+        .join('\n');
 
-  if (!recommendations || recommendations.length === 0) {
-    if (followUpQuestionContent) {
-      return { role: 'assistant', content: followUpQuestionContent, isRecommendation: false };
+      return `
+Card: ${rec.card_name}
+Type: ${rec.card_type}
+Annual Fee: ₹${rec.annual_fee}
+Joining Fee: ₹${rec.joining_fee}
+Total Savings: ₹${rec.total_savings}
+Breakdown:
+${breakdownText}
+`;
+    }).join('\n');
+
+    const prompt = `Based on the following credit card recommendations, provide a friendly, conversational summary that highlights the best options and their key benefits. Include specific savings amounts and any notable perks.
+
+${recommendationsText}
+
+${followUpQuestionContent ? `\nAfter your summary, ask: ${followUpQuestionContent}` : ''}`;
+
+    const response = await fetch('http://localhost:3001/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message: prompt }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+
+    const data = await response.json();
+    return { role: 'assistant', content: data.response };
+  } catch (error) {
+    console.error('Error verbalizing recommendations:', error);
     return { 
       role: 'assistant', 
-      content: "I couldn't find specific card recommendations for the provided spends. Is there anything else I can help with?", 
-      isRecommendation: false 
+      content: 'I apologize, but I encountered an error while processing the recommendations. Please try again.',
+      isError: true 
     };
   }
-
-  const mappedRecommendations: UICardRecommendation[] = recommendations.map(calcCard => {
-    const perks = calcCard.category_wise_breakdown
-      .filter(breakdown => breakdown.rewards > 0)
-      .slice(0, 3) // Take top 3 categories with rewards
-      .map(breakdown => `Savings on ${breakdown.category.replace(/_/g, ' ' ).replace(/\b\w/g, l => l.toUpperCase())}`); // Format category name
-
-    return {
-      id: calcCard.card_id,
-      name: calcCard.card_name,
-      annualRewards: `₹${calcCard.annual_total.toLocaleString('en-IN')}`,
-      keyPerks: perks,
-      // imageUrl, joiningFee, annualFee, detailsLink are omitted for now
-    };
-  });
-  
-  return {
-    role: 'assistant',
-    content: followUpQuestionContent || "", // Main content is now the follow-up question
-    recommendations: mappedRecommendations,
-    isRecommendation: true,
-  };
-}
+};
 
 // Stub for flows/card-explain.flow.json (3.5)
-export async function explainCardPerks(cardName: string): Promise<ChatMessage> {
-  if (!openai) return { role: 'assistant', content: "I'm having trouble connecting to explain card perks." };
-
-  // In a real scenario, you'd first fetch structured perk data for 'cardName' from your DB/CSVs
-  // For now, this is a placeholder prompt.
-  const systemPrompt = `You are a credit card expert. Explain the key benefits, joining fees, annual fees, and any fee waiver conditions for the "${cardName}" credit card in a user-friendly way. If you don't know the card, say so. Focus on Indian credit cards.
-  Example for "HDFC Millennia": "The HDFC Millennia card is great for online shoppers, offering 5% cashback on Amazon, Flipkart, and more... Its annual fee is ₹1000, waived on spends over ₹1 lakh."`;
-
+export const explainCardPerks = async (cardFacts: CardFacts): Promise<ChatMessage> => {
   try {
-    const completion = await openai.chat.completions.create({
-      model: import.meta.env.VITE_OPENAI_MODEL || "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Tell me more about the ${cardName} card.` }
-      ],
-      temperature: 0.4,
+    const prompt = `Explain the key benefits of the ${cardFacts.card_name} credit card in a friendly, conversational way. Include:
+    - Annual fee: ${cardFacts.annual_fee}
+    - Joining fee: ${cardFacts.joining_fee}
+    - Welcome benefit: ${cardFacts.welcome_benefit}
+    - Milestone benefit: ${cardFacts.milestone_benefit}
+    - Travel benefit: ${cardFacts.travel_benefit}
+    
+    Keep it concise and highlight the most valuable perks.`;
+
+    const response = await fetch('http://localhost:3001/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message: prompt }),
     });
-    const content = completion.choices[0]?.message?.content;
-    return {
-      role: "assistant",
-      content: content || `Sorry, I couldn't retrieve detailed information for ${cardName} at the moment.`, // Fallback
-    };
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { role: 'assistant', content: data.response };
   } catch (error) {
-    console.error(`Error explaining card ${cardName}:`, error);
-    return { role: 'assistant', content: `Sorry, an error occurred while trying to explain the ${cardName} card.` };
+    console.error('Error explaining card perks:', error);
+    return { 
+      role: 'assistant', 
+      content: `I'm having trouble getting the details for ${cardFacts.card_name}. Please try again later.`,
+      isError: true 
+    };
   }
-}
+};
 
 // The old sendMessage can be deprecated or heavily simplified.
 // For now, let's keep it to ensure no immediate breakage if other parts still call it,
@@ -315,4 +330,12 @@ export const sendMessage = async (content: string): Promise<ChatMessage> => {
     console.error('Error in deprecated sendMessage:', error);
     throw error;
   }
+};
+
+export const analyzeUserInput = async (input: string): Promise<any> => {
+  if (!openai) {
+    throw new Error('OpenAI service not initialized');
+  }
+  // Basic implementation - can be expanded based on needs
+  return parseIntentAndSpends(input);
 }; 

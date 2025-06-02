@@ -1,5 +1,4 @@
-import { AsyncDuckDB } from '@duckdb/duckdb-wasm';
-import * as arrow from 'apache-arrow';
+import * as duckdb from 'duckdb';
 import { z } from 'zod';
 
 // Add this mapping at the top, after imports
@@ -19,16 +18,23 @@ const USER_TO_INTERNAL_CATEGORY_MAP: Record<string, string[]> = {
 export const SpendSchema = z.object({
   amazon_spends: z.number().optional(),
   flipkart_spends: z.number().optional(),
-  grocery_spends_online: z.number().optional(),
-  dining_or_going_out: z.number().optional(),
+  other_online_spends: z.number().optional(),
+  flights_annual: z.number().optional(),
+  hotels_annual: z.number().optional(),
   fuel: z.number().optional(),
-  mobile_phone_bills: z.number().optional(),
-  utility_bills: z.number().optional(),
-  travel_spends: z.number().optional(),
-  other_spends: z.number().optional()
+  dining_or_going_out: z.number().optional(),
+  online_food_ordering: z.number().optional(),
+  grocery_spends: z.number().optional(),
 });
 
-export type Spend = z.infer<typeof SpendSchema>;
+export type SpendProfile = z.infer<typeof SpendSchema>;
+
+export interface SavingsResult {
+  card_id: string;
+  monthly_rewards: number;
+  milestone_bonus: number;
+  annual_total: number;
+}
 
 export interface CardRecommendation {
   card_id: string;
@@ -84,175 +90,106 @@ function calculateTieredRewards(
   return monthlyRewardValue;
 }
 
-export async function calcTopN(db: AsyncDuckDB, spend: Spend, n: number): Promise<CardRecommendation[]> {
-  const conn = await db.connect();
+/* ---------- Core helpers ---------- */
 
-  try {
-    const expandedSpend: Record<string, number> = { ...spend } as Record<string, number>;
-    for (const key in expandedSpend) {
-      if (expandedSpend[key] === undefined || expandedSpend[key] === null || expandedSpend[key] < 0) {
-        delete expandedSpend[key];
-      }
-    }
+/** Calculate rewards for ONE card */
+export async function calcCard(
+  db: duckdb.Connection,
+  cardId: string,
+  spend: SpendProfile
+): Promise<SavingsResult> {
+  return new Promise((resolve, reject) => {
+    // 1. Fetch reward rules + caps
+    const stmt1 = db.prepare(`
+      SELECT category_key,
+             reward_rate,
+             COALESCE(monthly_cap, 9e12) AS cap
+        FROM joined_view
+       WHERE card_id = ?
+    `);
+    stmt1.all(cardId, (err, rules) => {
+      stmt1.finalize();
+      if (err) return reject(err);
 
-    const rulesResult = await conn.query(`SELECT * FROM vw_rewards_by_category`);
-    const rules = rulesResult.toArray().map(row => row.toJSON());
-
-    // Add diagnostic logging for AmazonPay ICICI
-    const amazonPayRules = rules.filter((rule: any) => 
-      rule.card_name === 'ICICI Amazon Pay Credit Card' && 
-      rule.internal_category === 'amazon_spends'
-    );
-    console.log('[calc_savings] AmazonPay ICICI rules:', JSON.stringify(amazonPayRules, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2));
-
-    const benefitsResult = await conn.query(
-      `SELECT card_id, MAX(card_name) as card_name, MAX(milestone_benefit_desc) as milestone_benefit_desc, MAX(welcome_benefit_desc) as welcome_benefit_desc, MAX(travel_benefit_desc) as travel_benefit_desc, MAX(food_benefit_desc) as food_benefit_desc FROM reward_rules GROUP BY card_id`
-    );
-    const cardBenefits: Record<string, any> = {};
-    for (const row of benefitsResult.toArray().map(r => r.toJSON())) {
-      cardBenefits[String(row.card_id)] = row;
-    }
-
-    const cardRulesMap: Record<string, { card_name: string; categories: any[]; benefits: any }> = {};
-    for (const row of rules) {
-      const card_id_str = String(row.card_id);
-      if (!cardRulesMap[card_id_str]) {
-        cardRulesMap[card_id_str] = {
-          card_name: String(row.card_name),
-          categories: [],
-          benefits: cardBenefits[card_id_str] || {}
-        };
-      }
-      if (!cardRulesMap[card_id_str].categories.some(cat => cat.internal_category === row.internal_category)) {
-        const parsedRow = { ...row };
-        const fieldsToParseAsFloat = ['cb_percentage', 'cash_conversion', 'other_conversion'];
-        const fieldsToParseAsInt = [
-          'total_max_cap', 'category_max_cap', 'RP1', 'spend_conversion',
-          'RP2', 'threshold_2', 'RP3', 'threshold_3',
-          'category_max_points', 'total_max_points'
-        ];
-        for (const field of fieldsToParseAsFloat) {
-          if (parsedRow[field] !== null && parsedRow[field] !== undefined) {
-            const cleanedValue = String(parsedRow[field]).replace(/^"|"$/g, '');
-            parsedRow[field] = parseFloat(cleanedValue);
-            if (isNaN(parsedRow[field])) parsedRow[field] = 0; // Default to 0 if parsing results in NaN
-          } else {
-            parsedRow[field] = 0; // Default null/undefined to 0 for these fields
-          }
-        }
-        for (const field of fieldsToParseAsInt) {
-          if (parsedRow[field] !== null && parsedRow[field] !== undefined) {
-            const cleanedValue = String(parsedRow[field]).replace(/^"|"$/g, '');
-            parsedRow[field] = parseInt(cleanedValue, 10);
-            if (isNaN(parsedRow[field])) parsedRow[field] = 0; // Default to 0 if parsing results in NaN
-          } else {
-            parsedRow[field] = 0; // Default null/undefined to 0
-          }
-        }
-        cardRulesMap[card_id_str].categories.push(parsedRow);
-      }
-    }
-    
-    const recommendations: CardRecommendation[] = [];
-    for (const [card_id_str, cardData] of Object.entries(cardRulesMap)) {
-      let total_monthly_rewards_for_card_before_total_cap = 0;
-      const category_wise_breakdown_for_annual_output: Array<{ category: string; amount: number; rewards: number }> = [];
-      // For RP cards that might have a total monthly points cap across all categories
-      let total_monthly_points_for_card = 0; 
-      let is_rp_card_with_total_point_cap = false;
-      let card_level_total_max_points: number | null = null;
-      let card_level_rp_cash_conversion = 1; // Default, will be updated if card has RP rules
-
-      // First pass to determine if card has a total_max_points and its RP conversion rate
-      // This assumes total_max_points and cash_conversion are consistent for all RP rules of a card
-      if (cardData.categories.length > 0) {
-          const firstRule = cardData.categories[0]; // Use first rule to check card-level properties
-          if (firstRule.total_max_points && firstRule.total_max_points > 0 && firstRule.total_max_points < 9e17) {
-              is_rp_card_with_total_point_cap = true; // Might be an RP card with overall point cap
-              card_level_total_max_points = firstRule.total_max_points; // This is a MONTHLY point cap
-          }
-          if (firstRule.cash_conversion && firstRule.cash_conversion > 0) {
-            card_level_rp_cash_conversion = firstRule.cash_conversion;
-          } else if (firstRule.other_conversion && firstRule.other_conversion > 0) {
-            card_level_rp_cash_conversion = firstRule.other_conversion;
-          }
+      // 2. Accumulate monthly rewards
+      let monthly = 0;
+      for (const { category_key, reward_rate, cap } of rules) {
+        const categoryKey = category_key as keyof SpendProfile;
+        const amt = Math.min(spend[categoryKey] ?? 0, cap);
+        monthly += amt * reward_rate;
       }
 
-
-      for (const catRule of cardData.categories) {
-        const spendAmt = expandedSpend[catRule.internal_category] || 0; // Monthly spend for this category
-        if (spendAmt > 0) {
-          let capped_monthly_reward_for_category = 0;
-          const cbPercentage = catRule.cb_percentage;
-          const monthlyCategoryMaxCap = catRule.category_max_cap;
-          const monthlyCategoryMaxPoints = catRule.category_max_points;
-
-          // Add diagnostic logging for cashback calculation
-          console.log(`[calc_savings] Processing category ${catRule.internal_category} for ${cardData.card_name}:`, {
-            internal_reward_code: catRule.internal_reward_code,
-            cb_percentage: cbPercentage,
-            RP1: catRule.RP1,
-            spend_conversion: catRule.spend_conversion
-          });
-
-          if (cbPercentage && cbPercentage > 0) {
-            let raw_monthly_reward = spendAmt * (cbPercentage / 10000); // cbPercentage is 500 for 5%, so div by 10000
-            console.log(`[calc_savings] CB DIAGNOSTIC: Card: ${cardData.card_name}, Category: ${catRule.internal_category}, Internal Reward Code: ${catRule.internal_reward_code}, Parsed cb_percentage: ${cbPercentage}, Monthly Spend: ${spendAmt}, Raw Monthly Reward: ${raw_monthly_reward}, CatRule MonthlyCap: ${catRule.category_max_cap}`);
-            
-            if (monthlyCategoryMaxCap !== null && monthlyCategoryMaxCap < 9e17 && raw_monthly_reward > monthlyCategoryMaxCap) {
-              capped_monthly_reward_for_category = monthlyCategoryMaxCap;
-            } else {
-              capped_monthly_reward_for_category = raw_monthly_reward;
-            }
-          } else {
-            const rp_cat_reward = calculateTieredRewards(
-              spendAmt,
-              catRule.RP1 || 0, catRule.RP2 || 0, catRule.RP3 || 0,
-              catRule.spend_conversion || 1,
-              catRule.threshold_2 || 0, catRule.threshold_3 || 0,
-              catRule.cash_conversion || 0, catRule.other_conversion || 0,
-              monthlyCategoryMaxCap,
-              monthlyCategoryMaxPoints
-            );
-            capped_monthly_reward_for_category = rp_cat_reward;
-            console.log(`[calc_savings] RP DIAGNOSTIC: Card: ${cardData.card_name}, Category: ${catRule.internal_category}, Internal Reward Code: ${catRule.internal_reward_code}, Monthly Spend: ${spendAmt}, RP1: ${catRule.RP1}, SC: ${catRule.spend_conversion}, CC: ${catRule.cash_conversion}, OC: ${catRule.other_conversion}, CatRule CatCap: ${catRule.category_max_cap ?? 0}, CatRule PtsCap: ${catRule.category_max_points ?? 0}, Returned Cat Reward: ${capped_monthly_reward_for_category}`);
-          }
-          
-          total_monthly_rewards_for_card_before_total_cap += capped_monthly_reward_for_category;
-          category_wise_breakdown_for_annual_output.push({
-            category: catRule.internal_category,
-            amount: spendAmt,
-            rewards: capped_monthly_reward_for_category * 12 
-          });
-        }
-      }
-
-      // Apply MONTHLY total_max_cap (monetary) for the card
-      let final_capped_total_monthly_reward_for_card = total_monthly_rewards_for_card_before_total_cap;
-      const cardLevelRuleForTotalCap = cardData.categories[0]; 
-      const monthlyTotalMonetaryCap = cardLevelRuleForTotalCap ? cardLevelRuleForTotalCap.total_max_cap : null;
-
-      if (monthlyTotalMonetaryCap !== null && monthlyTotalMonetaryCap < 9e17 && final_capped_total_monthly_reward_for_card > monthlyTotalMonetaryCap) {
-        final_capped_total_monthly_reward_for_card = monthlyTotalMonetaryCap;
-      }
-      
-      const annual_total_rewards_value = final_capped_total_monthly_reward_for_card * 12;
-      
-      if (annual_total_rewards_value > 0) {
-        // If the card's total annual reward was capped by monthlyTotalMonetaryCap,
-        // the sum of category_wise_breakdown_for_annual_output might be misleadingly high.
-        // Optionally, proportionally reduce breakdown rewards if overall cap is hit.
-        // For now, keeping breakdown as sum of individually (category) capped annualized rewards.
-        recommendations.push({
-          card_id: card_id_str,
-          card_name: cardData.card_name,
-          annual_total: annual_total_rewards_value,
-          category_wise_breakdown: category_wise_breakdown_for_annual_output
+      // 3. Check milestone eligibility
+      const totalSpend = Object.values(spend).reduce((a, b) => a + (b ?? 0), 0);
+      const stmt2 = db.prepare(`
+        SELECT milestone_reward
+          FROM milestones
+         WHERE card_id = ?
+           AND ? >= milestone_spend
+      ORDER BY milestone_spend DESC
+         LIMIT 1
+      `);
+      stmt2.all(cardId, totalSpend, (err2, ms) => {
+        stmt2.finalize();
+        if (err2) return reject(err2);
+        const milestone_bonus = ms.length > 0 ? ms[0].milestone_reward : 0;
+        resolve({
+          card_id: cardId,
+          monthly_rewards: monthly,
+          milestone_bonus,
+          annual_total: monthly * 12 + milestone_bonus,
         });
-      }
-    }
-    return recommendations.sort((a, b) => b.annual_total - a.annual_total).slice(0, n);
-  } finally {
-    await conn.close();
+      });
+    });
+  });
+}
+
+/** Calculate the TOP-N cards by annual_total */
+export async function calcTopN(db: duckdb.Connection, spendData: SpendProfile, n: number = 3) {
+  try {
+    // Convert spend data to SQL-friendly format
+    const spendValues = Object.entries(spendData)
+      .filter(([_, value]) => value !== undefined)
+      .map(([key, value]) => `'${key}', ${value}`)
+      .join(', ');
+
+    const query = `
+      WITH spend_data AS (
+        SELECT * FROM (VALUES (${spendValues})) AS t(category, amount)
+      ),
+      card_rewards AS (
+        SELECT 
+          c.id,
+          c.card_name,
+          c.annual_fee,
+          SUM(
+            CASE 
+              WHEN r.category = sd.category THEN sd.amount * (r.reward_rate / 100)
+              ELSE 0
+            END
+          ) as total_rewards
+        FROM cards c
+        CROSS JOIN spend_data sd
+        LEFT JOIN category_caps r ON c.id = r.card_id
+        GROUP BY c.id, c.card_name, c.annual_fee
+      )
+      SELECT 
+        id as card_id,
+        card_name,
+        total_rewards as monthly_rewards,
+        0 as milestone_bonus,
+        (total_rewards * 12) as annual_total
+      FROM card_rewards
+      ORDER BY annual_total DESC
+      LIMIT ${n}
+    `;
+
+    const stmt = db.prepare(query);
+    const results = stmt.all();
+    stmt.finalize();
+    return results;
+  } catch (error) {
+    console.error('Error calculating top N cards:', error);
+    throw error;
   }
 } 

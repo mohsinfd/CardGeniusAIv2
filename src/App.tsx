@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChatInterface } from './components/ChatInterface';
 import { AsyncDuckDB } from '@duckdb/duckdb-wasm';
 import * as duckdb from '@duckdb/duckdb-wasm';
@@ -43,8 +43,8 @@ function App() {
         await importCSVFiles(database);
         await createViews(database);
 
-        // Initialize OpenAI service with DB
-        await initializeDB(database);
+        // Initialize OpenAI service
+        await initializeDB();
 
         setDB(database);
         setIsLoading(false);
@@ -73,7 +73,7 @@ function App() {
         <p>Your Credit Card Rewards Assistant</p>
       </header>
       <main>
-        <ChatInterface db={db} />
+        <ChatInterface />
       </main>
     </div>
   );
