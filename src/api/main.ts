@@ -444,15 +444,17 @@ function generateCardUsageTips(matchingCards: any[]): Record<string, string> {
 }
 
 // Start the server
-initializeDatabase()
-  .then(() => {
-    app.listen(port, () => {
-      console.log(`⚡️[MCP Server]: Server is running at http://localhost:${port}`);
+if (process.env.NODE_ENV !== 'test') {
+  initializeDatabase()
+    .then(() => {
+      app.listen(port, () => {
+        console.log(`⚡️[MCP Server]: Server is running at http://localhost:${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to initialize database and start server:', error);
+      process.exit(1);
     });
-  })
-  .catch((error) => {
-    console.error('Failed to initialize database and start server:', error);
-    process.exit(1);
-  });
+}
 
 export default app; 
