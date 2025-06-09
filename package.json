@@ -6,7 +6,8 @@
     "dev": "next dev -p 3019",
     "build": "next build",
     "start": "next start -p 3019",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "jest"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.2.8",
