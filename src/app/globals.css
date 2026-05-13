@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(var(--background-end-rgb))
+  )
+  rgb(var(--background-start-rgb));
+  min-height: 100vh;
+}
+
+/* Mobile Responsive Design */
+@media (max-width: 640px) {
+  .container {
+    padding: 0 1rem;
+  }
+}
+
+/* Chat Interface Styles */
+.chat-container {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.chat-input {
+  min-height: 44px; /* Minimum touch target size */
+  padding: 0.5rem 1rem;
+}
+
+/* Loading Animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+} 
